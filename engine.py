@@ -50,11 +50,22 @@ class GeneralMovingAverage(object):
         return self.moving_avg.module
 
 
+class IdentityMovingAverage(GeneralMovingAverage):
+    def update(self):
+        self.iter += 1
+        for moving_avg_param, param in zip(self.moving_avg.parameters(), self.model.parameters()):
+            moving_avg_param.data = param
+
+
 def get_dataset(args):
     if args.task == "domain_shift":
         # load domainbed data
-        train_datasets, val_datasets, test_datasets, class_names = \
-            converter_domainbed.get_domainbed_datasets(dataset_name=args.data, root=args.root, targets=args.targets, holdout=0.2)
+        if args.n_shot == 0:
+            train_datasets, val_datasets, test_datasets, class_names = \
+                converter_domainbed.get_domainbed_datasets(dataset_name=args.data, root=args.root, targets=args.targets, holdout=0.2)
+        else:
+            train_datasets, val_datasets, test_datasets, class_names = \
+                converter_domainbed.get_domainbed_fewshot_datasets(dataset_name=args.data, root=args.root, targets=args.targets, shot_num=args.n_shot)
         train_class_names = class_names
         train_iter = converter_domainbed.get_forever_iter(train_datasets, args.batch_size, num_workers=args.workers)
         val_loader = DataLoader(ConcatDataset(val_datasets), batch_size=args.batch_size, shuffle=False, num_workers=args.workers)

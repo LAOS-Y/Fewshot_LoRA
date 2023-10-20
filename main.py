@@ -3,6 +3,7 @@ import warnings
 import argparse
 import shutil
 import scipy as sp
+import os.path as osp
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -12,15 +13,18 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import clip
 
 from utils import CompleteLogger, TensorboardWriter
-from engine import GeneralMovingAverage, get_dataset, get_text_features, train, evaluate_all
+from engine import GeneralMovingAverage, IdentityMovingAverage, get_dataset, get_text_features, train, evaluate_all
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+LOG_ROOT = "/home/siwei/data/model_logs/lora_log/"
 
 
 def main(args: argparse.Namespace):
     logger = CompleteLogger(args.log, args.phase)
     print(args)
+
+    args.log = osp.join(LOG_ROOT, args.log)
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -55,7 +59,7 @@ def main(args: argparse.Namespace):
     total_iter = args.epochs * args.iters_per_epoch
     weight_func = lambda it: beta_dist.pdf((it + 0.5) / (total_iter + 1))
 
-    bma_classifier = GeneralMovingAverage(classifier, weight_func)
+    bma_classifier = IdentityMovingAverage(classifier, weight_func)
 
     if args.phase == "train":
         # define optimizer and lr scheduler
@@ -108,7 +112,7 @@ if __name__ == '__main__':
                         help='root path of dataset')
     parser.add_argument('-d', '--data', metavar='DATA', default='DomainNet')
     parser.add_argument('--task', default='domain_shift', choices=
-                        ['domain_shift', 'open_class', 'in_the_wild'])
+                        ['domain_shift', 'open_class', 'in_the_wild', ])
     parser.add_argument('--targets', nargs='+', type=int, default=None,
                         help='target domain(s) (DomainBed datasets only)')
     parser.add_argument('--n-shot', type=int, default=0)
