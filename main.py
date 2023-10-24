@@ -21,10 +21,10 @@ LOG_ROOT = "/home/siwei/data/model_logs/lora_log/"
 
 
 def main(args: argparse.Namespace):
+    args.log = osp.join(LOG_ROOT, args.log)
     logger = CompleteLogger(args.log, args.phase)
     print(args)
 
-    args.log = osp.join(LOG_ROOT, args.log)
 
     if args.seed is not None:
         random.seed(args.seed)
@@ -112,10 +112,11 @@ if __name__ == '__main__':
                         help='root path of dataset')
     parser.add_argument('-d', '--data', metavar='DATA', default='DomainNet')
     parser.add_argument('--task', default='domain_shift', choices=
-                        ['domain_shift', 'open_class', 'in_the_wild', ])
+                        ['domain_shift', 'domain_adaptation', 'open_class', 'in_the_wild', ])
     parser.add_argument('--targets', nargs='+', type=int, default=None,
                         help='target domain(s) (DomainBed datasets only)')
     parser.add_argument('--n-shot', type=int, default=0)
+    parser.add_argument('--split', type=int, default=0)
     # model parameters
     parser.add_argument('-a', '--arch', metavar='ARCH', default='ViT-B/16')
     # training parameters
