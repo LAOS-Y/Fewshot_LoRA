@@ -65,7 +65,7 @@ def get_dataset(args):
                 converter_domainbed.get_domainbed_datasets(dataset_name=args.data, root=args.root, targets=args.targets, holdout=0.2)
         else:
             train_datasets, val_datasets, test_datasets, class_names = \
-                converter_domainbed.get_domainbed_fewshot_datasets(dataset_name=args.data, root=args.root, targets=args.targets, shot_num=args.n_shot)
+                converter_domainbed.get_domainbed_fewshot_datasets(dataset_name=args.data, root=args.root, targets=args.targets, shot_num=args.n_shot, split=args.split)
         train_class_names = class_names
         train_iter = converter_domainbed.get_forever_iter(train_datasets, args.batch_size, num_workers=args.workers)
         val_loader = DataLoader(ConcatDataset(val_datasets), batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
@@ -78,6 +78,38 @@ def get_dataset(args):
         ]
         template = "a photo of a {}."
     
+    elif args.task == "domain_adaptation":
+        # load dassl data
+        train_dataset, val_dataset, test_dataset, class_names, template = \
+            converter_dassl.get_close_dassl_datasets(dataset_name=args.data, root=args.root, n_shot=args.n_shot)
+        train_class_names = class_names
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, drop_last=True)
+        train_iter = ForeverDataIterator(train_loader)
+        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
+        test_loaders = [
+            {
+                "name": "test",
+                "loader": DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers),
+                "class_names": class_names
+            },
+        ]
+
+    elif args.task == "domain_generalization":
+        # load dassl data
+        train_dataset, val_dataset, test_dataset, class_names, template = \
+            converter_dassl.get_close_dassl_datasets(dataset_name=args.data, root=args.root, n_shot=args.n_shot)
+        train_class_names = class_names
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, drop_last=True)
+        train_iter = ForeverDataIterator(train_loader)
+        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
+        test_loaders = [
+            {
+                "name": "test",
+                "loader": DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers),
+                "class_names": class_names
+            },
+        ]
+
     elif args.task == "open_class":
         # load dassl data
         train_dataset, val_dataset, test_dataset, open_dataset, base_class_names, open_class_names, template = \

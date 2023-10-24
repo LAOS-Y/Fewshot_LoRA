@@ -103,3 +103,25 @@ def get_dassl_datasets(dataset_name, root, n_shot=0):
     open_dataset = DasslDataset(raw_open_dataset, "test", val_transform)
     base_class_names, open_class_names = train_dataset.classnames, open_dataset.classnames
     return train_dataset, val_dataset, test_dataset, open_dataset, base_class_names, open_class_names, template
+
+
+def get_close_dassl_datasets(dataset_name, root, n_shot=0):
+    train_transform = transforms.Compose([
+        transforms.RandomResizedCrop(224, scale=(0.7, 1.0)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+    ])
+    val_transform = transforms.Compose([
+        transforms.Resize(224),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+    ])
+    raw_dataset = get_raw_dassl_dataset(dataset_name, root, n_shot, "all")
+    template = CUSTOM_TEMPLATES[dataset_name]
+    train_dataset = DasslDataset(raw_dataset, "train", train_transform)
+    val_dataset = DasslDataset(raw_dataset, "val", val_transform)
+    test_dataset = DasslDataset(raw_dataset, "test", val_transform)
+    base_class_names = train_dataset.classnames
+    return train_dataset, val_dataset, test_dataset, base_class_names, template
