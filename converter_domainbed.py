@@ -22,7 +22,9 @@ def get_domainbed_fewshot_datasets(dataset_name, root, targets, shot_num, split=
     def is_valid_file_train(img_path):
         dir_path, img_filename = osp.split(img_path)
         filenames = json.load(open(osp.join(dir_path, "shuffled_filenames.json")))
-        assert (split + 1) * shot_num < len(filenames), (dir_path, len(filenames))
+        filenames += filenames
+
+        assert 2 * shot_num < len(filenames), (dir_path, len(filenames))
         filenames = filenames[split * shot_num: (split + 1) * shot_num]
         return img_filename in filenames
 
@@ -30,7 +32,9 @@ def get_domainbed_fewshot_datasets(dataset_name, root, targets, shot_num, split=
     def is_valid_file_val(img_path):
         dir_path, img_filename = osp.split(img_path)
         filenames = json.load(open(osp.join(dir_path, "shuffled_filenames.json")))
-        assert (split + 2) * shot_num < len(filenames), (dir_path, len(filenames))
+        filenames += filenames
+
+        assert 2 * shot_num < len(filenames), (dir_path, len(filenames))
         filenames = filenames[(split + 1) * shot_num: (split + 2) * shot_num]
         return img_filename in filenames
 
