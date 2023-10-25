@@ -7,6 +7,7 @@ import torch
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from loguru import logger
 
 
 def accuracy(output, target, topk=(1,)):
@@ -78,7 +79,7 @@ class ProgressMeter(object):
     def display(self, batch):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        print('\t'.join(entries))
+        logger.info('\t'.join(entries))
 
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))
@@ -110,8 +111,34 @@ class TextLogger(object):
         self.terminal.close()
         self.log.close()
 
+def setup_logger(root, phase='train'):
+    """
+    Initialize the cvpods logger and set its verbosity level to "INFO".
 
-class CompleteLogger:
+    Args:
+        output (str): a file name or a directory to save log. If None, will not save log file.
+            If ends with ".txt" or ".log", assumed to be a file name.
+            Otherwise, logs will be saved to `output/log.txt`.
+
+    Returns:
+        logging.Logger: a logger
+    """
+    logger.remove()
+    loguru_format = (
+        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+    )
+
+    logger.add(sys.stderr, format=loguru_format)
+
+    os.makedirs(root, exist_ok=True)
+    now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time()))
+    log_path = os.path.join(root, "{}-{}.txt".format(phase, now))
+    logger.add(log_path)
+
+
+class Checkpoint:
     """
     A useful logger that
 
@@ -127,22 +154,11 @@ class CompleteLogger:
     def __init__(self, root, phase='train'):
         self.root = root
         self.phase = phase
-        self.visualize_directory = os.path.join(self.root, "visualize")
         self.checkpoint_directory = os.path.join(self.root, "checkpoints")
         self.epoch = 0
 
-        os.makedirs(self.root, exist_ok=True)
-        os.makedirs(self.visualize_directory, exist_ok=True)
         os.makedirs(self.checkpoint_directory, exist_ok=True)
 
-        # redirect std out
-        now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time()))
-        log_filename = os.path.join(self.root, "{}-{}.txt".format(phase, now))
-        if os.path.exists(log_filename):
-            os.remove(log_filename)
-        self.logger = TextLogger(log_filename)
-        sys.stdout = self.logger
-        sys.stderr = self.logger
         if phase != 'train':
             self.set_epoch(phase)
 
@@ -156,12 +172,6 @@ class CompleteLogger:
             return str(self.epoch)
         else:
             return self.phase
-
-    def get_image_path(self, filename: str):
-        """
-        Get the full image path for a specific filename
-        """
-        return os.path.join(self.visualize_directory, self._get_phase_or_epoch(), filename)
 
     def get_checkpoint_path(self, name=None):
         """
@@ -177,9 +187,6 @@ class CompleteLogger:
             name = self._get_phase_or_epoch()
         name = str(name)
         return os.path.join(self.checkpoint_directory, name + ".pth")
-
-    def close(self):
-        self.logger.close()
 
 
 class TensorboardWriter(object):

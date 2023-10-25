@@ -11,8 +11,9 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import clip
+from loguru import logger
 
-from utils import CompleteLogger, TensorboardWriter
+from utils import Checkpoint, TensorboardWriter, setup_logger
 from engine import GeneralMovingAverage, IdentityMovingAverage, get_dataset, get_text_features, train, evaluate_all
 
 
@@ -22,8 +23,10 @@ LOG_ROOT = "/home/siwei/data/model_logs/lora_log/"
 
 def main(args: argparse.Namespace):
     args.log = osp.join(LOG_ROOT, args.log)
-    logger = CompleteLogger(args.log, args.phase)
-    print(args)
+    setup_logger(args.log, args.phase)
+    logger.info(args)
+
+    ckpt = Checkpoint(args.log, args.phase)
 
 
     if args.seed is not None:
@@ -43,7 +46,7 @@ def main(args: argparse.Namespace):
     train_iter, val_loader, test_loaders, train_class_names, template = get_dataset(args)
 
     # create model
-    print("=> using pre-trained model '{}'".format(args.arch))
+    logger.info("=> using pre-trained model '{}'".format(args.arch))
     classifier = clip_model.visual
     classifier = classifier.to(device)
     clip.model.convert_weights(classifier)
@@ -78,7 +81,7 @@ def main(args: argparse.Namespace):
 
         # start training
         for epoch in range(args.epochs):
-            print("Learning rate: {:.4e}".format(lr_scheduler.get_last_lr()[0]))
+            logger.info("Learning rate: {:.4e}".format(lr_scheduler.get_last_lr()[0]))
             
             # train for one epoch
             train(train_iter, classifier, bma_classifier, train_text_features, optimizer, lr_scheduler, epoch, args, writer, device)
@@ -87,22 +90,21 @@ def main(args: argparse.Namespace):
             val_acc1 = evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
 
             # remember best acc@1 and save checkpoint
-            torch.save(classifier.state_dict(), logger.get_checkpoint_path('latest'))
+            torch.save(classifier.state_dict(), ckpt.get_checkpoint_path('latest'))
             if val_acc1 > best_val_acc1:
-                shutil.copy(logger.get_checkpoint_path('latest'), logger.get_checkpoint_path('best'))
+                shutil.copy(ckpt.get_checkpoint_path('latest'), ckpt.get_checkpoint_path('best'))
                 best_val_acc1 = val_acc1
 
-        print("Training completed.")
+        logger.info("Training completed.")
 
-    classifier.load_state_dict(torch.load(logger.get_checkpoint_path('best')))
-    print("Evaluate best model:")
+    classifier.load_state_dict(torch.load(ckpt.get_checkpoint_path('best')))
+    logger.info("Evaluate best model:")
     evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
 
-    torch.save(bma_classifier.state_dict(), logger.get_checkpoint_path('bma'))
-    print("Evaluate BMA model:")
+    torch.save(bma_classifier.state_dict(), ckpt.get_checkpoint_path('bma'))
+    logger.info("Evaluate BMA model:")
     evaluate_all(bma_classifier, val_loader, train_text_features, test_loaders, args, writer, device)
     
-    logger.close()
 
 
 if __name__ == '__main__':

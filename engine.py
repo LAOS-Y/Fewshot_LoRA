@@ -4,6 +4,7 @@ import copy
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, ConcatDataset
+from loguru import logger
 
 import clip
 
@@ -282,19 +283,19 @@ def validate(val_loader, model, text_features, args, device, shift=0) -> float:
             if i % args.print_freq == 0:
                 progress.display(i)
 
-        print(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
+        logger.info(' * Acc@1 {top1.avg:.3f}'.format(top1=top1))
     
     return top1.avg
 
 
 def evaluate_all(model, val_loader, train_text_features, test_loaders, args, writer, device):
-    print("Evaluate on validation set...")
+    logger.info("Evaluate on validation set...")
     val_acc1 = validate(val_loader, model, train_text_features, args, device)
     writer.write_eval_values({"Acc@1": val_acc1}, prefix="val")
 
     for test_loader in test_loaders:
         split_name = test_loader["name"]
-        print(f"Evaluate on {split_name} set...")
+        logger.info(f"Evaluate on {split_name} set...")
         validate(test_loader["loader"], model, test_loader["text_features"], args, device)
         writer.write_eval_values({"Acc@1": val_acc1}, prefix=split_name)
 
