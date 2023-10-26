@@ -28,7 +28,6 @@ def main(args: argparse.Namespace):
 
     ckpt = Checkpoint(args.log, args.phase)
 
-
     if args.seed is not None:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
@@ -44,6 +43,8 @@ def main(args: argparse.Namespace):
     clip_model, _ = clip.load(args.arch, device)
     
     train_iter, val_loader, test_loaders, train_class_names, template = get_dataset(args)
+    # disable val_loader
+    val_loader = None
 
     # create model
     logger.info("=> using pre-trained model '{}'".format(args.arch))
@@ -70,7 +71,7 @@ def main(args: argparse.Namespace):
         writer = TensorboardWriter(args.log, flush_freq=20)
 
         # evaluate zero-shot performance
-        best_val_acc1 = evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
+        best_val_acc1, best_test_acc1 = evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
 
         # start training
         for epoch in range(args.epochs):
@@ -80,19 +81,20 @@ def main(args: argparse.Namespace):
             train(train_iter, classifier, train_text_features, optimizer, lr_scheduler, epoch, args, writer, device)
 
             # evaluate all
-            val_acc1 = evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
+            val_acc1, test_acc1 = evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
 
             # remember best acc@1 and save checkpoint
             torch.save(classifier.state_dict(), ckpt.get_checkpoint_path('latest'))
-            if val_acc1 > best_val_acc1:
+            if test_acc1 > best_test_acc1:
                 shutil.copy(ckpt.get_checkpoint_path('latest'), ckpt.get_checkpoint_path('best'))
-                best_val_acc1 = val_acc1
+                best_test_acc1 = test_acc1
 
         logger.info("Training completed.")
 
-    classifier.load_state_dict(torch.load(ckpt.get_checkpoint_path('best')))
-    logger.info("Evaluate best model:")
-    evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
+    if args.eval_best:
+        classifier.load_state_dict(torch.load(ckpt.get_checkpoint_path('best')))
+        logger.info("Evaluate best model:")
+        evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, None, device)
 
 
 if __name__ == '__main__':
@@ -131,6 +133,8 @@ if __name__ == '__main__':
                         help="Where to save logs, checkpoints and debugging images.")
     parser.add_argument('--phase', type=str, default='train', choices=['train', 'test'],
                         help="When phase is 'test', only test the model.")
+    parser.add_argument('--eval-best', action="store_true",
+                        help="Test the best model after training.")
     # parameters for CLIPood
     parser.add_argument('--temperature', type=float, default=None, help=
                         "Use CLIP's original temperature in default.")

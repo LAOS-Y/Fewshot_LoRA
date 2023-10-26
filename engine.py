@@ -43,27 +43,27 @@ def get_dataset(args):
         val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
         test_loaders = [
             {
-                "name": "test",
+                "name": f"test/{args.data}",
                 "loader": DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers),
                 "class_names": class_names
             },
         ]
 
-    elif args.task == "domain_generalization":
-        # load dassl data
-        train_dataset, val_dataset, test_dataset, class_names, template = \
-            converter_dassl.get_close_dassl_datasets(dataset_name=args.data, root=args.root, n_shot=args.n_shot)
-        train_class_names = class_names
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, drop_last=True)
-        train_iter = ForeverDataIterator(train_loader)
-        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
-        test_loaders = [
-            {
-                "name": "test",
-                "loader": DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers),
-                "class_names": class_names
-            },
-        ]
+    # elif args.task == "domain_generalization":
+    #     # load dassl data
+    #     train_dataset, val_dataset, test_dataset, class_names, template = \
+    #         converter_dassl.get_close_dassl_datasets(dataset_name=args.data, root=args.root, n_shot=args.n_shot)
+    #     train_class_names = class_names
+    #     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, drop_last=True)
+    #     train_iter = ForeverDataIterator(train_loader)
+    #     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
+    #     test_loaders = [
+    #         {
+    #             "name": "test",
+    #             "loader": DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers),
+    #             "class_names": class_names
+    #         },
+    #     ]
 
     elif args.task == "open_class":
         # load dassl data
@@ -238,14 +238,24 @@ def validate(val_loader, model, text_features, args, device, shift=0) -> float:
 
 
 def evaluate_all(model, val_loader, train_text_features, test_loaders, args, writer, device):
-    logger.info("Evaluate on validation set...")
-    val_acc1 = validate(val_loader, model, train_text_features, args, device)
-    writer.write_eval_values({"Acc@1": val_acc1}, prefix="val")
+    val_acc1 = None
+    if val_loader is not None:
+        logger.info("Evaluate on validation set...")
+        val_acc1 = validate(val_loader, model, train_text_features, args, device)
+        if writer is not None:
+            writer.write_eval_values({"Acc@1": val_acc1}, prefix="val")
 
+    test_acc1_dict = {}
     for test_loader in test_loaders:
         split_name = test_loader["name"]
         logger.info(f"Evaluate on {split_name} set...")
-        validate(test_loader["loader"], model, test_loader["text_features"], args, device)
-        writer.write_eval_values({"Acc@1": val_acc1}, prefix=split_name)
+        test_acc = validate(test_loader["loader"], model, test_loader["text_features"], args, device)
+        test_acc1_dict["split_name"] = test_acc
+        if writer is not None:
+            writer.write_eval_values({"Acc@1": test_acc}, prefix=split_name)
 
-    return val_acc1
+    test_acc = sum(test_acc1_dict.values()) / len(test_acc1_dict)
+    if writer is not None:
+        writer.write_eval_values({"Acc@1": test_acc}, prefix="test/mean")
+
+    return val_acc1, test_acc
