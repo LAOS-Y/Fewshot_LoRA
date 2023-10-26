@@ -14,7 +14,7 @@ import clip
 from loguru import logger
 
 from utils import Checkpoint, TensorboardWriter, setup_logger
-from engine import GeneralMovingAverage, IdentityMovingAverage, get_dataset, get_text_features, train, evaluate_all
+from engine import get_dataset, get_text_features, train, evaluate_all
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -57,13 +57,6 @@ def main(args: argparse.Namespace):
     for test_loader in test_loaders:
         test_loader["text_features"] = get_text_features(clip_model, template, test_loader["class_names"], device)
 
-    # define beta moving average
-    beta_dist = sp.stats.beta(args.beta, args.beta)
-    total_iter = args.epochs * args.iters_per_epoch
-    weight_func = lambda it: beta_dist.pdf((it + 0.5) / (total_iter + 1))
-
-    bma_classifier = IdentityMovingAverage(classifier, weight_func)
-
     if args.phase == "train":
         # define optimizer and lr scheduler
         optimizer = AdamW(classifier.parameters(), lr=args.lr, weight_decay=args.wd)
@@ -84,7 +77,7 @@ def main(args: argparse.Namespace):
             logger.info("Learning rate: {:.4e}".format(lr_scheduler.get_last_lr()[0]))
             
             # train for one epoch
-            train(train_iter, classifier, bma_classifier, train_text_features, optimizer, lr_scheduler, epoch, args, writer, device)
+            train(train_iter, classifier, train_text_features, optimizer, lr_scheduler, epoch, args, writer, device)
 
             # evaluate all
             val_acc1 = evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
@@ -100,11 +93,6 @@ def main(args: argparse.Namespace):
     classifier.load_state_dict(torch.load(ckpt.get_checkpoint_path('best')))
     logger.info("Evaluate best model:")
     evaluate_all(classifier, val_loader, train_text_features, test_loaders, args, writer, device)
-
-    torch.save(bma_classifier.state_dict(), ckpt.get_checkpoint_path('bma'))
-    logger.info("Evaluate BMA model:")
-    evaluate_all(bma_classifier, val_loader, train_text_features, test_loaders, args, writer, device)
-    
 
 
 if __name__ == '__main__':
@@ -147,7 +135,6 @@ if __name__ == '__main__':
     parser.add_argument('--temperature', type=float, default=None, help=
                         "Use CLIP's original temperature in default.")
     parser.add_argument('--lam', type=float, default=0.3)
-    parser.add_argument('--beta', type=float, default=0.5)
 
     args = parser.parse_args()
     main(args)
